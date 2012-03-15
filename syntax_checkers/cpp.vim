@@ -20,12 +20,6 @@
 "
 "   let g:syntastic_cpp_no_include_search = 1
 "
-" In order to add some custom include directories that should be added to the
-" gcc command line you can add those to the global variable
-" g:syntastic_cpp_include_dirs. This list can be used like this:
-"
-"   let g:syntastic_cpp_include_dirs = [ 'includes', 'headers' ]
-"
 " To enable header files being re-checked on every file write add the
 " following line to your .vimrc. Otherwise the header files are checked only
 " one time on initially loading the file.
@@ -45,19 +39,13 @@
 " checking execution via the variable 'g:syntastic_cpp_compiler_options':
 "
 "   let g:syntastic_cpp_compiler_options = ' -std=c++0x'
-"
-" Using the global variable 'g:syntastic_cpp_remove_include_errors' you can
-" specify whether errors of files included via the
-" g:syntastic_cpp_include_dirs' setting are removed from the result set:
-"
-"   let g:syntastic_cpp_remove_include_errors = 1
 
 if exists('loaded_cpp_syntax_checker')
     finish
 endif
 let loaded_cpp_syntax_checker = 1
 
-if !executable('g++')
+if !executable('clang')
     finish
 endif
 
@@ -65,23 +53,19 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 function! SyntaxCheckers_cpp_GetLocList()
-    let makeprg = 'g++ -fsyntax-only '
+    let makeprg = 'clang -fsyntax-only '.shellescape(expand('%'))
     let errorformat =  '%-G%f:%s:,%f:%l:%c: %m,%f:%l: %m'
-
-    if exists('g:syntastic_cpp_compiler_options')
-        let makeprg .= g:syntastic_cpp_compiler_options
-    endif
-
-    let makeprg .= ' ' . shellescape(expand('%')) .
-                \ ' ' . syntastic#c#GetIncludeDirs('cpp')
 
     if expand('%') =~? '\%(.h\|.hpp\|.hh\)$'
         if exists('g:syntastic_cpp_check_header')
-            let makeprg = 'g++ -c '.shellescape(expand('%')).
-                        \ ' ' . syntastic#c#GetIncludeDirs('cpp')
+            let makeprg = 'clang -c '.shellescape(expand('%')).' -o ~/.tmp/out.gch'
         else
             return []
         endif
+    endif
+
+    if exists('g:syntastic_cpp_compiler_options')
+        let makeprg .= g:syntastic_cpp_compiler_options
     endif
 
     if !exists('b:syntastic_cpp_cflags')
@@ -101,18 +85,7 @@ function! SyntaxCheckers_cpp_GetLocList()
         let makeprg .= b:syntastic_cpp_cflags
     endif
 
-    " process makeprg
-    let errors = SyntasticMake({ 'makeprg': makeprg,
-                \ 'errorformat': errorformat })
-
-    " filter the processed errors if desired
-    if exists('g:syntastic_cpp_remove_include_errors') &&
-                \ g:syntastic_cpp_remove_include_errors != 0
-        return filter(errors,
-                    \ 'has_key(v:val, "bufnr") && v:val["bufnr"]=='.bufnr(''))
-    else
-        return errors
-    endif
+    return SyntasticMake({ 'makeprg': makeprg, 'errorformat': errorformat })
 endfunction
 
 let &cpo = s:save_cpo
